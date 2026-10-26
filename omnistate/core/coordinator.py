@@ -69,6 +69,19 @@ class OmniStateCoordinator:
         )
         pre_commit_hook.write_text(hook_script, encoding="utf-8")
 
+        # Install Agent Skill for AI assistants (.agents/skills/omnistate/SKILL.md)
+        skill_template = Path(__file__).resolve().parent.parent / "templates" / "SKILL.md"
+        if skill_template.is_file():
+            skill_text = skill_template.read_text(encoding="utf-8")
+            for skill_dir in [
+                self.root_dir / ".agents" / "skills" / "omnistate",
+                self.root_dir / "skills" / "omnistate",
+            ]:
+                skill_dir.mkdir(parents=True, exist_ok=True)
+                target_skill_file = skill_dir / "SKILL.md"
+                if not target_skill_file.is_file() or overwrite:
+                    target_skill_file.write_text(skill_text, encoding="utf-8")
+
         return {
             "status": "initialized",
             "state_dir": str(self.ledger.state_dir),

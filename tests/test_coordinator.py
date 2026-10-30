@@ -68,6 +68,51 @@ class TestCoordinatorLifecycle(unittest.TestCase):
             self.coord.finish()
         self.assertIn("Anti-Tamper Security Violation", str(ctx.exception))
 
+    def test_planning_gate_requires_memo_checklist_and_subtask_completion(self):
+        self.coord.begin(
+            intent_summary="Planned feature",
+            scope_paths=["app.py"],
+            prompt="Implement a planned feature with verification.",
+        )
+
+        passed, results = self.coord.audit(files=[], run_tests=False)
+        self.assertFalse(passed)
+        self.assertFalse(next(r for r in results if r.gate_name == "PlanningGate").passed)
+
+        self.coord.update_memo("Implement a planned feature with verification.", ["reference.png"])
+        self.coord.add_checklist_item("CHECK-1", "Feature works", "Automated and visual evidence exists")
+        self.coord.add_subtask("TASK-1", "Implement feature", "implementation")
+        self.coord.add_subtask("TASK-2", "Verify feature", "visual_review", ["TASK-1"], "visual-supervisor")
+        self.coord.link_checklist_subtask("CHECK-1", "TASK-1")
+        self.coord.link_checklist_subtask("CHECK-1", "TASK-2", verification=True)
+        self.coord.record_subtask_result("TASK-1", "PASS", ["test.txt"], "Implemented")
+        self.coord.record_subtask_result("TASK-2", "PASS", ["screenshot.png"], "Verified")
+        self.coord.set_checklist_status("CHECK-1", "PASS", ["test.txt", "screenshot.png"])
+
+        passed, results = self.coord.audit(files=[], run_tests=False)
+        self.assertTrue(passed)
+        self.assertTrue(next(r for r in results if r.gate_name == "PlanningGate").passed)
+
+    def test_planning_gate_rejects_unresolved_dependency_and_conflict(self):
+        self.coord.begin("Implement governed work", ["src/"], prompt="User requirement")
+        self.coord.update_memo("User requirement")
+        self.coord.add_checklist_item("CHECK-1", "Deliver work", "Independent verification")
+        self.coord.add_subtask("TASK-1", "Implement", "implementation")
+        self.coord.add_subtask("TASK-2", "Verify", "verification", depends_on=["TASK-1"])
+        self.coord.link_checklist_subtask("CHECK-1", "TASK-1")
+        self.coord.link_checklist_subtask("CHECK-1", "TASK-2", verification=True)
+        self.coord.record_subtask_result("TASK-2", "PASS", ["verification.txt"], "Incorrectly early")
+        self.coord.record_subtask_result("TASK-1", "CONFLICTED", ["conflict.txt"], "Agents disagree")
+        self.coord.set_checklist_status("CHECK-1", "CONFLICTED", ["conflict.txt"])
+
+        passed, results = self.coord.audit(run_tests=False)
+
+        self.assertFalse(passed)
+        planning = next(r for r in results if r.gate_name == "PlanningGate")
+        self.assertFalse(planning.passed)
+        self.assertTrue(any("not complete" in error for error in planning.errors))
+        self.assertTrue(any("dependencies" in error for error in planning.errors))
+
 
 if __name__ == "__main__":
     unittest.main()

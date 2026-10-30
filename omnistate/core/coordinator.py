@@ -31,6 +31,7 @@ from omnistate.gates import (
     AntiLazinessCritic,
     EvidenceGate,
     GateResult,
+    PlanningGate,
     ScopeGate,
     TestRunnerGate,
     compute_file_sha256,
@@ -196,6 +197,107 @@ class OmniStateCoordinator:
         self.ledger.save_session(session)
         return step
 
+    def _planning(self, session: OmniStateSession) -> Dict[str, Any]:
+        planning = session.metadata.setdefault("planning", {})
+        planning.setdefault("required", bool(session.intent.prompt.strip()))
+        planning.setdefault("memo", {})
+        planning.setdefault("checklist", [])
+        planning.setdefault("subtasks", [])
+        planning.setdefault("assignments", [])
+        return planning
+
+    def update_memo(self, original_prompt: str, references: Optional[List[str]] = None, non_goals: Optional[List[str]] = None) -> Dict[str, Any]:
+        session = self.ledger.load_session()
+        if not session or session.status != SessionStatus.IN_PROGRESS:
+            raise RuntimeError("No active in-progress transaction session found.")
+        planning = self._planning(session)
+        planning["required"] = True
+        planning["memo"] = {
+            "original_prompt": original_prompt,
+            "references": references or [],
+            "non_goals": non_goals or session.intent.non_goals,
+            "updated_at": utc_now_iso(),
+        }
+        self.ledger.save_session(session)
+        return planning["memo"]
+
+    def add_checklist_item(self, check_id: str, title: str, acceptance: str) -> Dict[str, Any]:
+        session = self.ledger.load_session()
+        if not session or session.status != SessionStatus.IN_PROGRESS:
+            raise RuntimeError("No active in-progress transaction session found.")
+        planning = self._planning(session)
+        item = {"check_id": check_id, "title": title, "acceptance": acceptance, "status": "TODO", "implementation_subtasks": [], "verification_subtasks": [], "evidence": []}
+        planning["checklist"] = [i for i in planning["checklist"] if i.get("check_id") != check_id] + [item]
+        self.ledger.save_session(session)
+        return item
+
+    def add_subtask(self, subtask_id: str, title: str, task_type: str, depends_on: Optional[List[str]] = None, owner: str = "primary") -> Dict[str, Any]:
+        session = self.ledger.load_session()
+        if not session or session.status != SessionStatus.IN_PROGRESS:
+            raise RuntimeError("No active in-progress transaction session found.")
+        planning = self._planning(session)
+        task = {"subtask_id": subtask_id, "title": title, "type": task_type, "depends_on": depends_on or [], "owner": owner, "status": "TODO", "evidence": []}
+        planning["subtasks"] = [t for t in planning["subtasks"] if t.get("subtask_id") != subtask_id] + [task]
+        self.ledger.save_session(session)
+        return task
+
+    def link_checklist_subtask(self, check_id: str, subtask_id: str, verification: bool = False) -> Dict[str, Any]:
+        session = self.ledger.load_session()
+        if not session or session.status != SessionStatus.IN_PROGRESS:
+            raise RuntimeError("No active in-progress transaction session found.")
+        planning = self._planning(session)
+        for item in planning["checklist"]:
+            if item.get("check_id") == check_id:
+                key = "verification_subtasks" if verification else "implementation_subtasks"
+                if subtask_id not in item[key]:
+                    item[key].append(subtask_id)
+                self.ledger.save_session(session)
+                return item
+        raise RuntimeError(f"Unknown checklist item: {check_id}")
+
+    def set_checklist_status(self, check_id: str, status: str, evidence: Optional[List[str]] = None, failure_reason: str = "") -> Dict[str, Any]:
+        session = self.ledger.load_session()
+        if not session or session.status != SessionStatus.IN_PROGRESS:
+            raise RuntimeError("No active in-progress transaction session found.")
+        if status not in {"TODO", "IN_PROGRESS", "BLOCKED", "PASS", "FAIL", "DEFERRED", "CONFLICTED"}:
+            raise ValueError("Invalid checklist status.")
+        planning = self._planning(session)
+        for item in planning["checklist"]:
+            if item.get("check_id") == check_id:
+                item.update({"status": status, "evidence": evidence or item.get("evidence", []), "failure_reason": failure_reason, "last_verified_at": utc_now_iso()})
+                self.ledger.save_session(session)
+                return item
+        raise RuntimeError(f"Unknown checklist item: {check_id}")
+
+    def assign_subtask(self, subtask_id: str, agent_id: str, role: str) -> Dict[str, Any]:
+        session = self.ledger.load_session()
+        if not session or session.status != SessionStatus.IN_PROGRESS:
+            raise RuntimeError("No active in-progress transaction session found.")
+        planning = self._planning(session)
+        for task in planning["subtasks"]:
+            if task.get("subtask_id") == subtask_id:
+                task["owner"] = agent_id
+                task["role"] = role
+                task["status"] = "RUNNING"
+                planning["assignments"].append({"subtask_id": subtask_id, "agent_id": agent_id, "role": role, "assigned_at": utc_now_iso()})
+                self.ledger.save_session(session)
+                return task
+        raise RuntimeError(f"Unknown subtask: {subtask_id}")
+
+    def record_subtask_result(self, subtask_id: str, status: str, evidence: Optional[List[str]] = None, result: str = "") -> Dict[str, Any]:
+        session = self.ledger.load_session()
+        if not session or session.status != SessionStatus.IN_PROGRESS:
+            raise RuntimeError("No active in-progress transaction session found.")
+        planning = self._planning(session)
+        for task in planning["subtasks"]:
+            if task.get("subtask_id") == subtask_id:
+                if status not in {"PASS", "FAIL", "BLOCKED", "CONFLICTED", "CANCELLED"}:
+                    raise ValueError("Invalid subtask result status.")
+                task.update({"status": status, "evidence": evidence or [], "result": result, "completed_at": utc_now_iso()})
+                self.ledger.save_session(session)
+                return task
+        raise RuntimeError(f"Unknown subtask: {subtask_id}")
+
     # Transaction: Audit
     def audit(
         self,
@@ -221,10 +323,13 @@ class OmniStateCoordinator:
             "test_command": self.config.gates.test_command if run_tests else None,
             "max_file_growth_ratio": self.config.gates.max_file_growth_ratio,
             "max_line_growth": self.config.gates.max_line_growth,
+            "planning": self._planning(session),
         }
 
         # Initialize gates
         gates = []
+        if session.metadata.get("planning", {}).get("required", False):
+            gates.append(PlanningGate())
         if self.config.gates.scope_enforcement:
             gates.append(ScopeGate())
         if self.config.gates.anti_laziness:

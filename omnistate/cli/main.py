@@ -113,6 +113,33 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_step.add_argument("--action", required=True, help="Action taken")
     p_step.add_argument("--details", default="", help="Additional details or output")
 
+    p_memo = subparsers.add_parser("memo", parents=[root_parent], help="Create or update the active requirement memo")
+    p_memo.add_argument("--prompt", required=True, help="Original user requirement")
+    p_memo.add_argument("--references", default="", help="Comma-separated references")
+
+    p_check = subparsers.add_parser("checklist", parents=[root_parent], help="Manage requirement checklist")
+    p_check.add_argument("action", choices=["add", "link", "status"])
+    p_check.add_argument("--id", required=True, help="Checklist id")
+    p_check.add_argument("--title", default="")
+    p_check.add_argument("--acceptance", default="")
+    p_check.add_argument("--subtask", default="")
+    p_check.add_argument("--verification", action="store_true")
+    p_check.add_argument("--value", default="TODO", help="Checklist status")
+    p_check.add_argument("--evidence", default="")
+
+    p_subtask = subparsers.add_parser("subtask", parents=[root_parent], help="Create, assign, or complete a subtask")
+    p_subtask.add_argument("action", choices=["add", "assign", "result"])
+    p_subtask.add_argument("--id", required=True, help="Subtask id")
+    p_subtask.add_argument("--title", default="")
+    p_subtask.add_argument("--type", default="implementation")
+    p_subtask.add_argument("--depends-on", default="")
+    p_subtask.add_argument("--owner", default="primary")
+    p_subtask.add_argument("--agent-id", default="")
+    p_subtask.add_argument("--role", default="worker")
+    p_subtask.add_argument("--value", default="PASS")
+    p_subtask.add_argument("--result", default="")
+    p_subtask.add_argument("--evidence", default="")
+
     # 4. audit
     p_audit = subparsers.add_parser("audit", parents=[root_parent], help="Audit modifications against scope, anti-laziness, and test gates")
     p_audit.add_argument("--files", default=None, help="Comma-separated file list (default: checks git status)")
@@ -184,6 +211,31 @@ def main(argv: Optional[List[str]] = None) -> int:
         elif args.command == "step":
             step = coord.record_step(action=args.action, details=args.details)
             print(f"📝 Step recorded [{step.timestamp}]: {step.action}")
+            return EXIT_SUCCESS
+
+        elif args.command == "memo":
+            memo = coord.update_memo(args.prompt, [x.strip() for x in args.references.split(",") if x.strip()])
+            print(json.dumps(memo, ensure_ascii=False, indent=2))
+            return EXIT_SUCCESS
+
+        elif args.command == "checklist":
+            if args.action == "add":
+                result = coord.add_checklist_item(args.id, args.title, args.acceptance)
+            elif args.action == "link":
+                result = coord.link_checklist_subtask(args.id, args.subtask, args.verification)
+            else:
+                result = coord.set_checklist_status(args.id, args.value, [x.strip() for x in args.evidence.split(",") if x.strip()])
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return EXIT_SUCCESS
+
+        elif args.command == "subtask":
+            if args.action == "add":
+                result = coord.add_subtask(args.id, args.title, args.type, [x.strip() for x in args.depends_on.split(",") if x.strip()], args.owner)
+            elif args.action == "assign":
+                result = coord.assign_subtask(args.id, args.agent_id, args.role)
+            else:
+                result = coord.record_subtask_result(args.id, args.value, [x.strip() for x in args.evidence.split(",") if x.strip()], args.result)
+            print(json.dumps(result, ensure_ascii=False, indent=2))
             return EXIT_SUCCESS
 
         # Command: audit

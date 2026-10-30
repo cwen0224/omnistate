@@ -91,6 +91,21 @@ class McpToolRegistry:
                 },
             },
             {
+                "name": "omnistate_memo",
+                "description": "Record the complete original requirement and references for the active transaction.",
+                "inputSchema": {"type": "object", "properties": {"prompt": {"type": "string"}, "references": {"type": "array", "items": {"type": "string"}}}, "required": ["prompt"]},
+            },
+            {
+                "name": "omnistate_checklist",
+                "description": "Add, link, or update a requirement checklist item.",
+                "inputSchema": {"type": "object", "properties": {"action": {"type": "string", "enum": ["add", "link", "status"]}, "check_id": {"type": "string"}, "title": {"type": "string"}, "acceptance": {"type": "string"}, "subtask_id": {"type": "string"}, "verification": {"type": "boolean"}, "status": {"type": "string"}, "evidence": {"type": "array", "items": {"type": "string"}}}, "required": ["action", "check_id"]},
+            },
+            {
+                "name": "omnistate_subtask",
+                "description": "Create, assign, or record the result of a dependency-aware subtask.",
+                "inputSchema": {"type": "object", "properties": {"action": {"type": "string", "enum": ["add", "assign", "result"]}, "subtask_id": {"type": "string"}, "title": {"type": "string"}, "task_type": {"type": "string"}, "depends_on": {"type": "array", "items": {"type": "string"}}, "owner": {"type": "string"}, "agent_id": {"type": "string"}, "role": {"type": "string"}, "status": {"type": "string"}, "result": {"type": "string"}, "evidence": {"type": "array", "items": {"type": "string"}}}, "required": ["action", "subtask_id"]},
+            },
+            {
                 "name": "omnistate_audit",
                 "description": "Audit current modifications against scope boundaries, anti-laziness gates, and test suites.",
                 "inputSchema": {
@@ -197,6 +212,30 @@ class McpToolRegistry:
                 )
                 return True, f"Recorded step at {step.timestamp}: {step.action}"
 
+            elif name == "omnistate_memo":
+                memo = self.coord.update_memo(arguments["prompt"], arguments.get("references", []))
+                return True, json.dumps(memo, indent=2)
+
+            elif name == "omnistate_checklist":
+                action = arguments["action"]
+                if action == "add":
+                    result = self.coord.add_checklist_item(arguments["check_id"], arguments.get("title", ""), arguments.get("acceptance", ""))
+                elif action == "link":
+                    result = self.coord.link_checklist_subtask(arguments["check_id"], arguments["subtask_id"], arguments.get("verification", False))
+                else:
+                    result = self.coord.set_checklist_status(arguments["check_id"], arguments.get("status", "TODO"), arguments.get("evidence", []))
+                return True, json.dumps(result, indent=2)
+
+            elif name == "omnistate_subtask":
+                action = arguments["action"]
+                if action == "add":
+                    result = self.coord.add_subtask(arguments["subtask_id"], arguments.get("title", ""), arguments.get("task_type", "implementation"), arguments.get("depends_on", []), arguments.get("owner", "primary"))
+                elif action == "assign":
+                    result = self.coord.assign_subtask(arguments["subtask_id"], arguments["agent_id"], arguments.get("role", "worker"))
+                else:
+                    result = self.coord.record_subtask_result(arguments["subtask_id"], arguments.get("status", "PASS"), arguments.get("evidence", []), arguments.get("result", ""))
+                return True, json.dumps(result, indent=2)
+
             elif name == "omnistate_audit":
                 passed, gate_results = self.coord.audit(
                     files=arguments.get("files"),
@@ -247,8 +286,10 @@ class McpToolRegistry:
                     "2. Only modify files within declared scope.\n"
                     "3. Never insert lazy ellipsis comments (`// ...`, `# TODO: implement`).\n"
                     "4. Call `omnistate_audit` after changes to verify all gates.\n"
-                    "5. Call `omnistate_finish` to seal the transaction and obtain commit clearance.\n"
-                    "6. Git commits are blocked by Warden without a valid clearance token!"
+                    "5. For prompted work, record `omnistate_memo`, create checklist items, and link dependency-aware subtasks before implementation.\n"
+                    "6. Assign independent verification subtasks and record their evidence; FAIL or CONFLICTED blocks completion.\n"
+                    "7. Call `omnistate_finish` to seal the transaction and obtain commit clearance.\n"
+                    "8. Git commits are blocked by Warden without a valid clearance token!"
                 )
                 return True, rules
 

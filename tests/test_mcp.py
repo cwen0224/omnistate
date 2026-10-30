@@ -30,6 +30,9 @@ class TestMcpServer(unittest.TestCase):
         self.assertIn("omnistate_finish", tool_names)
         self.assertIn("omnistate_status", tool_names)
         self.assertIn("omnistate_explain_rules", tool_names)
+        self.assertIn("omnistate_memo", tool_names)
+        self.assertIn("omnistate_checklist", tool_names)
+        self.assertIn("omnistate_subtask", tool_names)
 
     def test_mcp_tool_execution(self):
         # 1. Init
@@ -60,6 +63,37 @@ class TestMcpServer(unittest.TestCase):
         ok, res = self.registry.call_tool("omnistate_explain_rules", {})
         self.assertTrue(ok)
         self.assertIn("OMNISTATE Protocol for AI Agents", res)
+
+    def test_planning_tool_execution(self):
+        self.registry.call_tool("omnistate_init", {})
+        ok, _ = self.registry.call_tool("omnistate_begin", {
+            "intent": "Implement governed work",
+            "scope": ["src/"],
+            "prompt": "Create a requirement plan",
+        })
+        self.assertTrue(ok)
+        ok, _ = self.registry.call_tool("omnistate_memo", {"prompt": "Create a requirement plan"})
+        self.assertTrue(ok)
+        ok, _ = self.registry.call_tool("omnistate_checklist", {
+            "action": "add", "check_id": "CHECK-1", "title": "Deliver", "acceptance": "Pass",
+        })
+        self.assertTrue(ok)
+        ok, _ = self.registry.call_tool("omnistate_subtask", {
+            "action": "add", "subtask_id": "TASK-1", "title": "Implement", "task_type": "implementation",
+        })
+        self.assertTrue(ok)
+        ok, _ = self.registry.call_tool("omnistate_checklist", {
+            "action": "link", "check_id": "CHECK-1", "subtask_id": "TASK-1",
+        })
+        self.assertTrue(ok)
+        ok, _ = self.registry.call_tool("omnistate_subtask", {
+            "action": "result", "subtask_id": "TASK-1", "status": "PASS", "evidence": ["test.txt"],
+        })
+        self.assertTrue(ok)
+        ok, _ = self.registry.call_tool("omnistate_checklist", {
+            "action": "status", "check_id": "CHECK-1", "status": "PASS", "evidence": ["test.txt"],
+        })
+        self.assertTrue(ok)
 
 
 if __name__ == "__main__":

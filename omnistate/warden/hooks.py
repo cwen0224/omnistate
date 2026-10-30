@@ -25,7 +25,7 @@ def install_git_hooks(repo_dir: Path) -> bool:
     hook_content = (
         "#!/usr/bin/env sh\n"
         "# OMNISTATE Automated Pre-commit Guardrail Hook\n"
-        "python -m omnistate.cli warden --check-staged\n"
+        "python -m omnistate.cli.main warden --check-staged\n"
         "EXIT_CODE=$?\n"
         "if [ $EXIT_CODE -ne 0 ]; then\n"
         "  exit $EXIT_CODE\n"

@@ -11,6 +11,7 @@ from pathlib import Path
 from omnistate.constants import EXIT_SUCCESS, EXIT_WARDEN_BLOCKED, SessionStatus
 from omnistate.core.coordinator import OmniStateCoordinator
 from omnistate.warden.warden import OmniStateWarden
+from omnistate.warden.hooks import install_git_hooks
 
 
 class TestWarden(unittest.TestCase):
@@ -25,6 +26,7 @@ class TestWarden(unittest.TestCase):
 
         self.coord = OmniStateCoordinator(self.root_dir)
         self.coord.init_repository()
+        install_git_hooks(self.root_dir)
         self.warden = OmniStateWarden(self.root_dir)
 
     def tearDown(self):
@@ -61,6 +63,10 @@ class TestWarden(unittest.TestCase):
         # 5. Warden must PASS
         rc = self.warden.check_staged()
         self.assertEqual(rc, EXIT_SUCCESS)
+
+    def test_installed_hook_uses_real_cli_module(self):
+        hook = (self.root_dir / ".git" / "hooks" / "pre-commit").read_text(encoding="utf-8")
+        self.assertIn("python -m omnistate.cli.main warden --check-staged", hook)
 
 
 if __name__ == "__main__":

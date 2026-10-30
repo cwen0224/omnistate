@@ -9,6 +9,7 @@ from omnistate.gates.anti_laziness import AntiLazinessCritic
 from omnistate.gates.anti_bloat import AntiBloatCritic
 from omnistate.gates.test_runner import TestRunnerGate
 from omnistate.gates.evidence_gate import EvidenceGate
+from omnistate.gates.planning import PlanningGate
 from omnistate.gates.fingerprint import compute_file_sha256, compute_files_fingerprint
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     "AntiBloatCritic",
     "TestRunnerGate",
     "EvidenceGate",
+    "PlanningGate",
     "compute_file_sha256",
     "compute_files_fingerprint",
 ]

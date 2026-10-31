@@ -147,6 +147,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_subtask.add_argument("--result", default="")
     p_subtask.add_argument("--evidence", default="")
 
+    # postmortem
+    p_postmortem = subparsers.add_parser("postmortem", parents=[root_parent], help="Record postmortem reflection, flaws, and root-cause analysis")
+    p_postmortem.add_argument("--summary", required=True, help="Executive summary of the postmortem review")
+    p_postmortem.add_argument("--flaw", action="append", default=[], help="Flaw item in format 'title:description:severity' (e.g. 'Fuzzy Match:Lacking phonetic fallback:HIGH')")
+    p_postmortem.add_argument("--cause", action="append", default=[], help="Root cause description (can be specified multiple times)")
+    p_postmortem.add_argument("--mitigation", action="append", default=[], help="Future mitigation or action item (can be specified multiple times)")
+    p_postmortem.add_argument("--report", default="", help="Path to markdown postmortem report file (e.g. 18_Note/xxx.md)")
+
     # 4. audit
     p_audit = subparsers.add_parser("audit", parents=[root_parent], help="Audit modifications against scope, anti-laziness, and test gates")
     p_audit.add_argument("--files", default=None, help="Comma-separated file list (default: checks git status)")
@@ -253,6 +261,28 @@ def main(argv: Optional[List[str]] = None) -> int:
                 result = coord.assign_subtask(args.id, args.agent_id, args.role)
             else:
                 result = coord.record_subtask_result(args.id, args.value, [x.strip() for x in args.evidence.split(",") if x.strip()], args.result)
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return EXIT_SUCCESS
+
+        # Command: postmortem
+        elif args.command == "postmortem":
+            flaw_items = []
+            for item in args.flaw:
+                parts = [p.strip() for p in item.split(":", 2)]
+                if len(parts) == 3:
+                    flaw_items.append({"title": parts[0], "description": parts[1], "severity": parts[2]})
+                elif len(parts) == 2:
+                    flaw_items.append({"title": parts[0], "description": parts[1], "severity": "MEDIUM"})
+                else:
+                    flaw_items.append({"title": parts[0], "description": "", "severity": "LOW"})
+
+            result = coord.record_postmortem(
+                summary=args.summary,
+                flaws=flaw_items,
+                root_causes=args.cause,
+                mitigations=args.mitigation,
+                report_path=args.report or None,
+            )
             print(json.dumps(result, ensure_ascii=False, indent=2))
             return EXIT_SUCCESS
 

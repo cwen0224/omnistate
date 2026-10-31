@@ -27,7 +27,7 @@ This skill governs the execution of all software modifications under the **OMNIS
    - Only modify files declared in `scope_paths`.
    - Modifying files outside scope causes `ScopeEnclosureGate` to fail immediately.
 3. **Zero-Laziness Diff (零偷懶代碼)**:
-   - **STRICTLY FORBIDDEN**: Inserting ellipsis placeholders (`// ...`, `# ... existing code ...`, `<!-- ... -->`, `// rest of code unchanged`, `# TODO: implement`).
+- **STRICTLY FORBIDDEN**: Inserting ellipsis placeholders (`// ...`, `# ... existing code ...`, `<!-- ... -->`, `// rest of code unchanged`, `# TODO: implement`).
    - Every file modification must be complete, syntactically valid, and maintain docstring and comment integrity.
 4. **Anti-Tamper Cryptographic Lock (防竄改指紋鎖)**:
    - When `audit` passes, SHA-256 fingerprints of all modified files are frozen.

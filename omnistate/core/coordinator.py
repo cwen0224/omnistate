@@ -325,6 +325,32 @@ class OmniStateCoordinator:
                 return task
         raise RuntimeError(f"Unknown subtask: {subtask_id}")
 
+    def record_postmortem(
+        self,
+        summary: str,
+        flaws: Optional[List[Dict[str, Any]]] = None,
+        root_causes: Optional[List[str]] = None,
+        mitigations: Optional[List[str]] = None,
+        report_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Records a postmortem reflection and root-cause analysis before or during completion."""
+        session = self.ledger.load_session()
+        if not session or session.status in {SessionStatus.COMPLETED, SessionStatus.ABORTED}:
+            raise RuntimeError("No active transaction session found to record postmortem.")
+
+        postmortem = {
+            "summary": summary,
+            "flaws": flaws or [],
+            "root_causes": root_causes or [],
+            "mitigations": mitigations or [],
+            "report_path": report_path,
+            "recorded_at": utc_now_iso(),
+        }
+        session.metadata["postmortem"] = postmortem
+        session.add_step("Postmortem Recorded", f"Summary: {summary} ({len(flaws or [])} flaws analyzed)")
+        self.ledger.save_session(session)
+        return postmortem
+
     # Transaction: Audit
     def audit(
         self,

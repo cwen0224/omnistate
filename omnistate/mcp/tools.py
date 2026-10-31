@@ -130,6 +130,50 @@ class McpToolRegistry:
                 },
             },
             {
+                "name": "omnistate_postmortem",
+                "description": "Record deep postmortem reflection, flaws, and root causes before or during task completion.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "summary": {
+                            "type": "string",
+                            "description": "Executive summary of what went wrong, bottlenecks, or key lessons learned.",
+                        },
+                        "flaws": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "title": {"type": "string"},
+                                    "description": {"type": "string"},
+                                    "severity": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]}
+                                },
+                                "required": ["title"]
+                            },
+                            "description": "List of specific flaws, bottlenecks, or brittle points identified.",
+                            "default": [],
+                        },
+                        "root_causes": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Root causes underlying the identified flaws.",
+                            "default": [],
+                        },
+                        "mitigations": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Mitigations or future action items to resolve flaws.",
+                            "default": [],
+                        },
+                        "report_path": {
+                            "type": "string",
+                            "description": "Optional path to full markdown postmortem document.",
+                        }
+                    },
+                    "required": ["summary"]
+                },
+            },
+            {
                 "name": "omnistate_finish",
                 "description": "Finalize transaction, verify anti-tamper fingerprints, archive immutable snapshot, and issue commit clearance.",
                 "inputSchema": {
@@ -262,6 +306,17 @@ class McpToolRegistry:
                 }
                 status_str = "PASSED" if passed else "FAILED"
                 return passed, f"Audit {status_str}.\n{json.dumps(out, indent=2)}"
+
+            elif name == "omnistate_postmortem":
+                pm = self.coord.record_postmortem(
+                    summary=arguments.get("summary", ""),
+                    flaws=arguments.get("flaws", []),
+                    root_causes=arguments.get("root_causes", []),
+                    mitigations=arguments.get("mitigations", []),
+                    report_path=arguments.get("report_path"),
+                )
+                msg = "Postmortem recorded successfully:\n" + json.dumps(pm, ensure_ascii=False, indent=2)
+                return True, msg
 
             elif name == "omnistate_finish":
                 session = self.coord.finish(

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "omnistate"
-version = "1.0.0"
+version = "1.1.0"
 description = "Universal State Governance, Transaction Guardrails & Anti-Bypass Framework for AI Agents, MCP & CLI"
 readme = "README.md"
 authors = [

@@ -9,6 +9,7 @@ allowed-tools:
   - Grep
   - Glob
   - Bash
+exit-profile: governance
 ---
 
 # 🌐 OMNISTATE Universal State Governance & Guardrails Skill
@@ -123,3 +124,16 @@ Before calling `audit` or `finish`, the agent must internally verify:
 3. **Q3: 有沒有越界改動？ (Scope Boundary)**
    - Did I touch any file not declared in `scope_paths`?
    - Is every changed line justified by the original intent?
+
+
+## Exit Criteria (Evidence-Bound Definition of Done)
+
+OMNISTATE 狀態治理任務僅在下列條件全部滿足時標記為完成：
+1. **PlanningGate 通過**：包含 Memo 原始 Prompt 記錄、Checklist 全數通過、相依 Subtasks 圖譜無未竟任務。
+2. **獨立審查核可**：omnistate plan-review 狀態為 APPROVED 或 RESOLVED。
+3. **Audit 硬閘全綠**：ScopeGate、AntiLazinessCritic、AntiBloatCritic 均通過。
+4. **Warden 核發 Clearance Token**：成功完成 omnistate finish 並產出不可竄改指紋。
+
+> [!CAUTION]
+> **失敗出口 (Hold / Blocked)**：  
+> 出現未關聯 Subtask、未解決審查衝突、Diff 殘留佔位符或測試未通過時，狀態保持為 hold 或 locked。

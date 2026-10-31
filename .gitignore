@@ -35,7 +35,9 @@ ENV/
 env.bak/
 venv.bak/
 
-# IDE & Editor settings
+.omni/
+.omnistaterc.json
+capabilities.manifest.json
 .idea/
 .vscode/
 *.swp

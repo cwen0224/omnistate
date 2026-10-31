@@ -31,6 +31,7 @@ class TestMcpServer(unittest.TestCase):
         self.assertIn("omnistate_status", tool_names)
         self.assertIn("omnistate_explain_rules", tool_names)
         self.assertIn("omnistate_memo", tool_names)
+        self.assertIn("omnistate_plan_review", tool_names)
         self.assertIn("omnistate_checklist", tool_names)
         self.assertIn("omnistate_subtask", tool_names)
 
@@ -92,6 +93,11 @@ class TestMcpServer(unittest.TestCase):
         self.assertTrue(ok)
         ok, _ = self.registry.call_tool("omnistate_checklist", {
             "action": "status", "check_id": "CHECK-1", "status": "PASS", "evidence": ["test.txt"],
+        })
+        self.assertTrue(ok)
+        ok, _ = self.registry.call_tool("omnistate_plan_review", {
+            "agent_id": "reviewer", "status": "APPROVED",
+            "findings": ["Matches requirement"], "recommendations": ["Keep evidence"],
         })
         self.assertTrue(ok)
 

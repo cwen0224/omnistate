@@ -2,7 +2,7 @@
 
 ## Planning before implementation
 
-Prompted transactions must record the original requirement in a memo, decompose it into checklist items and dependency-aware subtasks, and attach evidence before `audit`/`finish`. Use `memo`, `checklist`, and `subtask` after `begin`; the planning gate rejects unfinished or unlinked work.
+Prompted transactions must record the original requirement in a memo, decompose it into checklist items and dependency-aware subtasks, and attach evidence before `audit`/`finish`. Use `memo`, `checklist`, and `subtask` after `begin`; the planning gate rejects unfinished or unlinked work. After the first plan is complete, use `plan-review` to activate an independent subagent that checks alignment with the user request, omissions, conflicts, and better approaches. Audit requires the review to be `APPROVED` or `RESOLVED`.
 
 > **Universal State Governance, Transaction Guardrails & Anti-Bypass Framework for AI Agents, MCP & CLI**  
 > *Zero Context Loss • Scope Enclosure • Anti-Laziness Diff Defense • Git Pre-commit Warden*

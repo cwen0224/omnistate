@@ -117,6 +117,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_memo.add_argument("--prompt", required=True, help="Original user requirement")
     p_memo.add_argument("--references", default="", help="Comma-separated references")
 
+    p_review = subparsers.add_parser("plan-review", parents=[root_parent], help="Record independent subagent review of the completed plan")
+    p_review.add_argument("--agent-id", required=True, help="Independent reviewing subagent identifier")
+    p_review.add_argument("--status", required=True, choices=["APPROVED", "CHANGES_REQUIRED", "RESOLVED", "CONFLICTED"])
+    p_review.add_argument("--findings", default="", help="Semicolon-separated findings")
+    p_review.add_argument("--recommendations", default="", help="Semicolon-separated recommendations")
+    p_review.add_argument("--evidence", default="", help="Comma-separated evidence paths")
+
     p_check = subparsers.add_parser("checklist", parents=[root_parent], help="Manage requirement checklist")
     p_check.add_argument("action", choices=["add", "link", "status"])
     p_check.add_argument("--id", required=True, help="Checklist id")
@@ -216,6 +223,17 @@ def main(argv: Optional[List[str]] = None) -> int:
         elif args.command == "memo":
             memo = coord.update_memo(args.prompt, [x.strip() for x in args.references.split(",") if x.strip()])
             print(json.dumps(memo, ensure_ascii=False, indent=2))
+            return EXIT_SUCCESS
+
+        elif args.command == "plan-review":
+            result = coord.record_plan_review(
+                args.agent_id,
+                args.status,
+                [x.strip() for x in args.findings.split(";") if x.strip()],
+                [x.strip() for x in args.recommendations.split(";") if x.strip()],
+                [x.strip() for x in args.evidence.split(",") if x.strip()],
+            )
+            print(json.dumps(result, ensure_ascii=False, indent=2))
             return EXIT_SUCCESS
 
         elif args.command == "checklist":

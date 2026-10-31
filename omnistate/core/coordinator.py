@@ -201,6 +201,7 @@ class OmniStateCoordinator:
         planning = session.metadata.setdefault("planning", {})
         planning.setdefault("required", bool(session.intent.prompt.strip()))
         planning.setdefault("memo", {})
+        planning.setdefault("plan_review", {"status": "PENDING", "findings": [], "recommendations": []})
         planning.setdefault("checklist", [])
         planning.setdefault("subtasks", [])
         planning.setdefault("assignments", [])
@@ -220,6 +221,32 @@ class OmniStateCoordinator:
         }
         self.ledger.save_session(session)
         return planning["memo"]
+
+    def record_plan_review(
+        self,
+        agent_id: str,
+        status: str,
+        findings: Optional[List[str]] = None,
+        recommendations: Optional[List[str]] = None,
+        evidence: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        session = self.ledger.load_session()
+        if not session or session.status != SessionStatus.IN_PROGRESS:
+            raise RuntimeError("No active in-progress transaction session found.")
+        if status not in {"APPROVED", "CHANGES_REQUIRED", "RESOLVED", "CONFLICTED"}:
+            raise ValueError("Invalid plan review status.")
+        planning = self._planning(session)
+        planning["plan_review"] = {
+            "agent_id": agent_id,
+            "role": "independent-plan-reviewer",
+            "status": status,
+            "findings": findings or [],
+            "recommendations": recommendations or [],
+            "evidence": evidence or [],
+            "reviewed_at": utc_now_iso(),
+        }
+        self.ledger.save_session(session)
+        return planning["plan_review"]
 
     def add_checklist_item(self, check_id: str, title: str, acceptance: str) -> Dict[str, Any]:
         session = self.ledger.load_session()

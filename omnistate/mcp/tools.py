@@ -96,6 +96,11 @@ class McpToolRegistry:
                 "inputSchema": {"type": "object", "properties": {"prompt": {"type": "string"}, "references": {"type": "array", "items": {"type": "string"}}}, "required": ["prompt"]},
             },
             {
+                "name": "omnistate_plan_review",
+                "description": "Record an independent subagent review of the completed plan; unresolved findings block audit.",
+                "inputSchema": {"type": "object", "properties": {"agent_id": {"type": "string"}, "status": {"type": "string", "enum": ["APPROVED", "CHANGES_REQUIRED", "RESOLVED", "CONFLICTED"]}, "findings": {"type": "array", "items": {"type": "string"}}, "recommendations": {"type": "array", "items": {"type": "string"}}, "evidence": {"type": "array", "items": {"type": "string"}}}, "required": ["agent_id", "status"]},
+            },
+            {
                 "name": "omnistate_checklist",
                 "description": "Add, link, or update a requirement checklist item.",
                 "inputSchema": {"type": "object", "properties": {"action": {"type": "string", "enum": ["add", "link", "status"]}, "check_id": {"type": "string"}, "title": {"type": "string"}, "acceptance": {"type": "string"}, "subtask_id": {"type": "string"}, "verification": {"type": "boolean"}, "status": {"type": "string"}, "evidence": {"type": "array", "items": {"type": "string"}}}, "required": ["action", "check_id"]},
@@ -216,6 +221,16 @@ class McpToolRegistry:
                 memo = self.coord.update_memo(arguments["prompt"], arguments.get("references", []))
                 return True, json.dumps(memo, indent=2)
 
+            elif name == "omnistate_plan_review":
+                review = self.coord.record_plan_review(
+                    arguments["agent_id"],
+                    arguments["status"],
+                    arguments.get("findings", []),
+                    arguments.get("recommendations", []),
+                    arguments.get("evidence", []),
+                )
+                return True, json.dumps(review, indent=2)
+
             elif name == "omnistate_checklist":
                 action = arguments["action"]
                 if action == "add":
@@ -287,9 +302,11 @@ class McpToolRegistry:
                     "3. Never insert lazy ellipsis comments (`// ...`, `# TODO: implement`).\n"
                     "4. Call `omnistate_audit` after changes to verify all gates.\n"
                     "5. For prompted work, record `omnistate_memo`, create checklist items, and link dependency-aware subtasks before implementation.\n"
-                    "6. Assign independent verification subtasks and record their evidence; FAIL or CONFLICTED blocks completion.\n"
-                    "7. Call `omnistate_finish` to seal the transaction and obtain commit clearance.\n"
-                    "8. Git commits are blocked by Warden without a valid clearance token!"
+                    "6. After the plan is complete, activate an independent subagent through `omnistate_plan_review`; record mismatches, omissions, and better alternatives.\n"
+                    "7. Resolve review findings and record APPROVED or RESOLVED; unresolved review findings block audit.\n"
+                    "8. Assign independent verification subtasks and record their evidence; FAIL or CONFLICTED blocks completion.\n"
+                    "9. Call `omnistate_finish` to seal the transaction and obtain commit clearance.\n"
+                    "10. Git commits are blocked by Warden without a valid clearance token!"
                 )
                 return True, rules
 

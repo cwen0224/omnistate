@@ -23,10 +23,17 @@ class PlanningGate(BaseGate):
 
         errors: List[str] = []
         memo = planning.get("memo", {})
+        review = planning.get("plan_review", {})
         checklist = planning.get("checklist", [])
         subtasks = planning.get("subtasks", [])
         if not memo.get("original_prompt"):
             errors.append("Requirement memo must preserve the original prompt.")
+        if review.get("status") not in {"APPROVED", "RESOLVED"}:
+            errors.append("Independent plan review must be APPROVED or RESOLVED before audit.")
+        if not review.get("agent_id"):
+            errors.append("Independent plan review must identify the reviewing subagent.")
+        if not review.get("findings") and not review.get("recommendations"):
+            errors.append("Independent plan review must record findings or recommendations.")
         if not checklist:
             errors.append("At least one checklist item is required before audit.")
         unfinished = [
@@ -68,5 +75,5 @@ class PlanningGate(BaseGate):
             self.name,
             not errors,
             errors=errors,
-            details={"required": True, "checklist_count": len(checklist), "subtask_count": len(subtasks)},
+            details={"required": True, "review_status": review.get("status", "PENDING"), "review_agent": review.get("agent_id", ""), "checklist_count": len(checklist), "subtask_count": len(subtasks)},
         )

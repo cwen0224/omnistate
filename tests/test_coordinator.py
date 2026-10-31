@@ -88,10 +88,48 @@ class TestCoordinatorLifecycle(unittest.TestCase):
         self.coord.record_subtask_result("TASK-1", "PASS", ["test.txt"], "Implemented")
         self.coord.record_subtask_result("TASK-2", "PASS", ["screenshot.png"], "Verified")
         self.coord.set_checklist_status("CHECK-1", "PASS", ["test.txt", "screenshot.png"])
+        self.coord.record_plan_review(
+            "plan-reviewer", "APPROVED",
+            findings=["Plan matches the requirement."],
+            recommendations=["Keep visual evidence mandatory."],
+            evidence=["reference.png"],
+        )
 
         passed, results = self.coord.audit(files=[], run_tests=False)
         self.assertTrue(passed)
         self.assertTrue(next(r for r in results if r.gate_name == "PlanningGate").passed)
+
+    def test_planning_gate_requires_independent_plan_review(self):
+        self.coord.begin("Planned feature", ["app.py"], prompt="Implement a planned feature.")
+        self.coord.update_memo("Implement a planned feature.")
+        self.coord.add_checklist_item("CHECK-1", "Feature works", "Evidence exists")
+        self.coord.add_subtask("TASK-1", "Implement feature", "implementation")
+        self.coord.link_checklist_subtask("CHECK-1", "TASK-1")
+        self.coord.record_subtask_result("TASK-1", "PASS", ["test.txt"], "Implemented")
+        self.coord.set_checklist_status("CHECK-1", "PASS", ["test.txt"])
+
+        passed, results = self.coord.audit(files=[], run_tests=False)
+
+        self.assertFalse(passed)
+        planning = next(r for r in results if r.gate_name == "PlanningGate")
+        self.assertTrue(any("Independent plan review" in error for error in planning.errors))
+
+        self.coord.record_plan_review(
+            "plan-reviewer", "CHANGES_REQUIRED",
+            findings=["The plan omits a visual check."],
+            recommendations=["Add an independent screenshot review."],
+        )
+        passed, _ = self.coord.audit(files=[], run_tests=False)
+        self.assertFalse(passed)
+
+        self.coord.record_plan_review(
+            "plan-reviewer", "RESOLVED",
+            findings=["The visual check was added."],
+            recommendations=["Keep the screenshot evidence."],
+        )
+        passed, results = self.coord.audit(files=[], run_tests=False)
+        self.assertTrue(passed)
+        self.assertEqual(next(r for r in results if r.gate_name == "PlanningGate").details["review_agent"], "plan-reviewer")
 
     def test_planning_gate_rejects_unresolved_dependency_and_conflict(self):
         self.coord.begin("Implement governed work", ["src/"], prompt="User requirement")
